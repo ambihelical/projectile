@@ -394,7 +394,7 @@ containing a root file."
   '(".idea"
     ".ensime_cache"
     ".eunit"
-    ".git"
+    "*.git"
     ".hg"
     ".fslckout"
     "_FOSSIL_"
@@ -1327,38 +1327,42 @@ function is executing."
   "First remove ignored files from FILES, then add back unignored files."
   (projectile-add-unignored (projectile-remove-ignored files)))
 
+(defun projectile--make-re (paths paren)
+    "If list is empty, return impossible regexp, otherwise optimized regexp"
+    (if paths (regexp-opt paths paren)
+      "a^"))
+
 (defun projectile-remove-ignored (files)
   "Remove ignored files and folders from FILES.
 
 If ignored directory prefixed with '*', then ignore all
 directories/subdirectories with matching filename,
 otherwise operates relative to project root."
-  (let ((ignored-files (projectile-ignored-files-rel))
-        (ignored-dirs (projectile-ignored-directories-rel)))
+
+  (let* ((ignore-files-re (concat (projectile--make-re (projectile-ignored-files-rel) "/\\(") "$"))
+         (ignore-glob-dirs (cl-loop for dir in (projectile-ignored-directories-rel)
+                             when (string-prefix-p "*" dir)
+                             collect (concat "/" (substring dir 1 nil))))
+         (ignore-glob-dirs-re (projectile--make-re ignore-glob-dirs t))
+         (ignore-top-dirs (cl-loop for dir in (projectile-ignored-directories-rel)
+                               unless (string-prefix-p "*" dir)
+                               collect dir))
+         (ignore-top-dirs-re (projectile--make-re ignore-top-dirs "^\\("))
+         (ignore-suffix-re (concat (projectile--make-re projectile-globally-ignored-file-suffixes t) "$")))
+    ;(message "ignore-glob-dirs is %s" ignore-glob-dirs)
+    ;(message "ignore-top-dirs is %s" ignore-top-dirs)
+    ;(message "ignore-top-dirs-re is %s" ignore-top-dirs-re)
+    ;(message "ignore-files-re is %s" ignore-files-re)
+    ;(message "ignore-glob-dirs-re is %s" ignore-glob-dirs-re)
+    ;(message "ignore-suffix-re is %s" ignore-suffix-re)
+    ;(message "ignore-files-re is %s" ignore-files-re)
     (cl-remove-if
      (lambda (file)
-       (or (cl-some
-            (lambda (f)
-              (string= f (file-name-nondirectory file)))
-            ignored-files)
-           (cl-some
-            (lambda (dir)
-              ;; if the directory is prefixed with '*' then ignore all directories matching that name
-              (if (string-prefix-p "*" dir)
-                  ;; remove '*' and trailing slash from ignored directory name
-                  (let ((d (substring dir 1 (if (equal (substring dir -1) "/") -1 nil))))
-                    (cl-some
-                     (lambda (p)
-                       (string= d p))
-                     ;; split path by '/', remove empty strings, and check if any subdirs match name 'd'
-                     (delete "" (split-string (or (file-name-directory file) "") "/"))))
-                (string-prefix-p dir file)))
-            ignored-dirs)
-           (cl-some
-            (lambda (suf)
-              (string-suffix-p suf file t))
-            projectile-globally-ignored-file-suffixes)))
-     files)))
+       (or (string-match ignore-files-re file)
+           (string-match ignore-suffix-re file)
+           (string-match ignore-top-dirs-re file)
+           (string-match ignore-glob-dirs-re file)))
+       files)))
 
 (defun projectile-keep-ignored-files (files)
   "Filter FILES to retain only those that are ignored."
