@@ -1810,9 +1810,11 @@ https://github.com/abo-abo/swiper")))
     (when (null files)
       (when projectile-enable-caching
         (message "Projectile is initializing cache..."))
-      (setq files (cl-mapcan
-                   #'projectile-dir-files
-                   (projectile-get-project-directories)))
+      (setq files (projectile--timer
+                   "Find files"
+                   (cl-mapcan
+                    #'projectile-dir-files
+                    (projectile-get-project-directories))))
 
       ;; Save the cached list.
       (when projectile-enable-caching
