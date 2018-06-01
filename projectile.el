@@ -504,6 +504,27 @@ project."
                                           (when (projectile-project-p)
                                             (run-hooks 'projectile-idle-timer-hook)))))))
   :type 'boolean)
+
+(defcustom projectile-show-timing-messages t
+  "Show timings of certain lengthy operations.
+
+  This is mostly for development use."
+  :group 'projectile
+  :type 'boolean)
+
+(defmacro projectile--timer (msg &rest body)
+  "Measure and echo the running time of the code block."
+  (declare (indent defun))
+      (let ((start (make-symbol "start"))
+            (total (make-symbol "total"))
+            (result (make-symbol "result")))
+        `(let* ((,start (float-time))
+                (,result ,@body)
+                (,total (- (float-time) ,start)))
+           (when projectile-show-timing-messages
+             (message "%s -> %f seconds" ,msg ,total))
+           ,result)))
+
 
 ;;; Serialization
 (defun projectile-serialize (data filename)
