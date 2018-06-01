@@ -1060,11 +1060,11 @@ Files are returned as relative paths to the project root."
   (let ((progress-reporter
          (make-progress-reporter
           (format "Projectile is indexing %s"
-                  (propertize directory 'face 'font-lock-keyword-face)))))
+                  (propertize directory 'face 'font-lock-keyword-face))))
+        (patterns (projectile-filtering-patterns)))
     ;; we need the files with paths relative to the project root
     (mapcar (lambda (file) (file-relative-name file root))
-            (projectile-index-directory directory (projectile-filtering-patterns)
-                                        progress-reporter))))
+            (projectile-index-directory directory patterns progress-reporter))))
 
 (defun projectile-dir-files-external (root directory)
   "Get the files for ROOT under DIRECTORY using external tools."
@@ -1337,7 +1337,7 @@ function is executing."
                     (projectile-index-directory f patterns progress-reporter))
                 (unless (projectile-ignored-file-p f)
                   (list f)))))
-          (directory-files directory t))))
+          (directory-files directory t nil t))))
 
 (defun projectile-adjust-files (files)
   "First remove ignored files from FILES, then add back unignored files."
