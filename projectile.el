@@ -1365,7 +1365,7 @@ directories/subdirectories with matching filename,
 otherwise operates relative to project root."
 
   (let* ((ignore-files-sub-re (projectile--make-re (projectile-ignored-files-rel) nil))
-         (ignore-files-re (concat "\\(^" ignore-files-sub-re "$\\|/" ignore-files-sub-re "$\\)"))
+         (ignore-files-re (concat "\\(?:^" ignore-files-sub-re "$\\|/" ignore-files-sub-re "$\\)"))
          (ignore-glob-dirs (cl-loop for dir in (projectile-ignored-directories-rel)
                                     when (string-prefix-p "*" dir)
                                     collect (concat "/" (substring dir 1 nil))))
@@ -1373,7 +1373,7 @@ otherwise operates relative to project root."
          (ignore-top-dirs (cl-loop for dir in (projectile-ignored-directories-rel)
                                    unless (string-prefix-p "*" dir)
                                    collect dir))
-         (ignore-top-dirs-re (projectile--make-re ignore-top-dirs "^\\("))
+         (ignore-top-dirs-re (projectile--make-re ignore-top-dirs "^\\(?:"))
          (ignore-suffix-re (concat (projectile--make-re projectile-globally-ignored-file-suffixes nil) "$")))
         ;; (message "ignore-glob-dirs is %s" ignore-glob-dirs)
         ;; (message "ignore-top-dirs is %s" ignore-top-dirs)
