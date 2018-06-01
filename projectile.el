@@ -515,6 +515,27 @@ project."
                                           (when (projectile-project-p)
                                             (run-hooks 'projectile-idle-timer-hook)))))))
   :type 'boolean)
+
+(defcustom projectile-show-timing-messages t
+  "Show timings of certain lengthy operations.
+
+  This is mostly for development use."
+  :group 'projectile
+  :type 'boolean)
+
+(defmacro projectile--timer (msg &rest body)
+  "Measure and echo the running time of the code block."
+  (declare (indent defun))
+      (let ((start (make-symbol "start"))
+            (total (make-symbol "total"))
+            (result (make-symbol "result")))
+        `(let* ((,start (float-time))
+                (,result ,@body)
+                (,total (- (float-time) ,start)))
+           (when projectile-show-timing-messages
+             (message "%s -> %f seconds" ,msg ,total))
+           ,result)))
+
 
 ;;; Serialization
 (defun projectile-serialize (data filename)
@@ -1047,16 +1068,18 @@ Files are returned as relative paths to the project root."
           (format "Projectile is indexing %s"
                   (propertize directory 'face 'font-lock-keyword-face)))))
     ;; we need the files with paths relative to the project root
+    (projectile--timer "Time to normalize raw file paths"
     (mapcar (lambda (file) (file-relative-name file root))
             (projectile-index-directory directory (projectile-filtering-patterns)
-                                        progress-reporter))))
+                                        progress-reporter)))))
 
 (defun projectile-dir-files-external (root directory)
   "Get the files for ROOT under DIRECTORY using external tools."
-  (let ((default-directory directory))
-    (mapcar (lambda (file)
-              (file-relative-name (expand-file-name file directory) root))
-            (projectile-get-repo-files))))
+  (let ((raw-files (projectile-get-repo-files))
+        (default-directory directory))
+    (projectile--timer "Time to normalize raw file paths"
+      (cl-loop for file in raw-files
+               collect (file-relative-name (expand-file-name file directory) root)))))
 
 (defcustom projectile-git-command "git ls-files -zco --exclude-standard"
   "Command used by projectile to get the files in a git project."
@@ -1206,11 +1229,12 @@ they are excluded from the results of this function."
 
 (defun projectile-get-repo-files ()
   "Get a list of the files in the project, including sub-projects."
-  (cond
-   ((eq (projectile-project-vcs) 'git)
-    (nconc (projectile-files-via-ext-command (projectile-get-ext-command))
-           (projectile-get-sub-projects-files)))
-   (t (projectile-files-via-ext-command (projectile-get-ext-command)))))
+  (projectile--timer "Time to get repo files"
+    (cond
+     ((eq (projectile-project-vcs) 'git)
+      (nconc (projectile-files-via-ext-command (projectile-get-ext-command))
+             (projectile-get-sub-projects-files)))
+     (t (projectile-files-via-ext-command (projectile-get-ext-command))))))
 
 (defun projectile-get-repo-ignored-files ()
   "Get a list of the files ignored in the project."
@@ -1325,7 +1349,8 @@ function is executing."
 
 (defun projectile-adjust-files (files)
   "First remove ignored files from FILES, then add back unignored files."
-  (projectile-add-unignored (projectile-remove-ignored files)))
+  (projectile--timer "Time to adjust files"
+    (projectile-add-unignored (projectile-remove-ignored files))))
 
 (defun projectile--make-re (paths paren)
     "If list is empty, return impossible regexp, otherwise optimized regexp"
@@ -3210,11 +3235,12 @@ directory to open."
 
 (defun projectile-serialize-cache (project-root)
   "Serializes the memory cache to the hard drive."
-  (if (not projectile-per-project-caching)
-      (projectile-serialize projectile-projects-cache projectile-cache-file)
-    (let ((cache-file (projectile-per-project-cache-file project-root))
-          (cache (gethash project-root projectile-projects-cache)))
-      (projectile-serialize cache cache-file))))
+  (projectile--timer "Time to serialize cache"
+    (if (not projectile-per-project-caching)
+        (projectile-serialize projectile-projects-cache projectile-cache-file)
+      (let* ((cache-file (projectile-per-project-cache-file project-root))
+             (cache (gethash project-root projectile-projects-cache)))
+        (projectile-serialize cache cache-file)))))
 
 (defun projectile-get-project-cache (project-root)
   "Returns all files cached for project, unserializing from disk if necessary."
