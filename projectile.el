@@ -645,6 +645,12 @@ just return nil."
 (defvar projectile-file-exists-cache-timer nil
   "Timer for scheduling`projectile-file-exists-cache-cleanup'.")
 
+(defvar projectile--ignored-files-cache nil
+  "Cache of ignored files for current project")
+
+(defvar projectile--ignored-dirs-cache nil
+  "Cache of ignored directories for current project")
+
 (defun projectile-file-exists-cache-cleanup ()
   "Removed timed out cache entries and reschedules or remove the
 timer if no more items are in the cache."
@@ -689,6 +695,11 @@ A wrapper around `file-exists-p' with additional caching support."
           (setq projectile-file-exists-cache-timer
                 (run-with-timer 10 nil 'projectile-file-exists-cache-cleanup)))
         (equal value 'found)))))
+
+(defun projectile--prepare-for-new-project ()
+  "Invalidate any current-project caches."
+  (setq projectile--ignored-files-cache nil
+        projectile--ignored-dirs-cache nil))
 
 ;;;###autoload
 (defun projectile-invalidate-cache (arg)
@@ -1595,25 +1606,31 @@ according to PATTERNS: (ignored . unignored)"
 
 (defun projectile-ignored-files ()
   "Return list of ignored files."
-  (projectile-difference
-   (mapcar
-    #'projectile-expand-root
-    (append
-     projectile-globally-ignored-files
-     (projectile-project-ignored-files)))
-   (projectile-unignored-files)))
+  (unless projectile--ignored-files-cache
+    (setq projectile--ignored-files-cache
+          (projectile-difference
+           (mapcar
+            #'projectile-expand-root
+            (append
+             projectile-globally-ignored-files
+             (projectile-project-ignored-files)))
+           (projectile-unignored-files))))
+  projectile--ignored-files-cache)
 
 (defun projectile-ignored-directories ()
   "Return list of ignored directories."
-  (projectile-difference
-   (mapcar
-    #'file-name-as-directory
-    (mapcar
-     #'projectile-expand-root
-     (append
-      projectile-globally-ignored-directories
-      (projectile-project-ignored-directories))))
-   (projectile-unignored-directories)))
+  (unless projectile--ignored-dirs-cache
+    (setq projectile--ignored-dirs-cache
+          (projectile-difference
+           (mapcar
+            #'file-name-as-directory
+            (mapcar
+             #'projectile-expand-root
+             (append
+              projectile-globally-ignored-directories
+              (projectile-project-ignored-directories))))
+           (projectile-unignored-directories))))
+  projectile--ignored-dirs-cache)
 
 (defun projectile-ignored-directories-rel ()
   "Return list of ignored directories, relative to the root."
@@ -3517,6 +3534,7 @@ With a prefix ARG invokes `projectile-commander' instead of
   (let ((switch-project-action (if arg
                                    'projectile-commander
                                  projectile-switch-project-action)))
+    (projectile--prepare-for-new-project)
     (run-hooks 'projectile-before-switch-project-hook)
     (let ((default-directory project-to-switch))
       ;; use a temporary buffer to load PROJECT-TO-SWITCH's dir-locals before calling SWITCH-PROJECT-ACTION
@@ -4046,6 +4064,7 @@ Otherwise behave as if called interactively.
     (unless projectile-projects-cache-time
       (setq projectile-projects-cache-time
             (make-hash-table :test 'equal)))
+    (projectile--prepare-for-new-project)
     (add-hook 'find-file-hook 'projectile-find-file-hook-function)
     (add-hook 'projectile-find-dir-hook #'projectile-track-known-projects-find-file-hook t)
     (add-hook 'dired-before-readin-hook #'projectile-track-known-projects-find-file-hook t t)
